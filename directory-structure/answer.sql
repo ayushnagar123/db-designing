@@ -40,6 +40,18 @@ CALL CreateDirectoryFile('image in root', NULL, 2000, '/image in root.jpeg', 100
 -- extension of file(for txt 0 as text file) 
 CALL CreateDirectoryFile('image in sub folder', 1, 2000, '/sub folder/image in sub folder.png', 100, 200, 2);
 
+
+-- 2.(a) List all files and get in descending order of created at
+SET @extension = NULL;
+CALL ListFiles(@extension);
+
+--2.(b) List all files and get in descending order of created at for perticular extension type
+SET @extension = 1;
+CALL ListFiles(@extension);
+
+-- 3. delete any directory along with its child.
+CALL TrashDirectories(1);
+
 -- 7. update subfolder 2 to nested folder 2
 -- directory id which is need to be renamed, new name of directory, extension of directory(null for folder, 0/1/2 in case of file)
 CALL UpdateDirectoryName(2, 'nested folder 2', NULL);
@@ -48,14 +60,6 @@ CALL UpdateDirectoryName(2, 'nested folder 2', NULL);
 SET @size = 0; 
 CALL DirectorySize(1, @size); 
 SELECT @size;
-
--- List all files and get in descending order of created at
-SET @extension = NULL;
-CALL ListFiles(@extension);
-
--- List all files and get in descending order of created at for perticular extension type
-SET @extension = 1;
-CALL ListFiles(@extension);
 
 -- Search all files and get in descending order of created at
 SET @extension = NULL;

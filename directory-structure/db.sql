@@ -7,7 +7,7 @@ CREATE TABLE directories(
     parent_id int DEFAULT NULL,
     status int DEFAULT 0,
     PRIMARY KEY(id),
-    CONSTRAINT sr_fk_parent_directory FOREIGN KEY(parent_id) REFERENCES directories(id)
+    CONSTRAINT sr_fk_parent_directory FOREIGN KEY(parent_id) REFERENCES directories(id) ON DELETE CASCADE
 )
 
 CREATE TABLE files(
@@ -19,7 +19,7 @@ CREATE TABLE files(
     created_at datetime DEFAULT CURRENT_TIMESTAMP,
     updated_at datetime DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(id),
-    CONSTRAINT sr_fk_file_directory FOREIGN KEY(directory_id) REFERENCES directories(id)
+    CONSTRAINT sr_fk_file_directory FOREIGN KEY(directory_id) REFERENCES directories(id) ON DELETE CASCADE
 )
 
 CREATE TABLE images(
@@ -28,5 +28,5 @@ CREATE TABLE images(
     width  int NOT NULL,
     height int NOT NULL,
     PRIMARY KEY(id),
-    CONSTRAINT sr_fk_image_file FOREIGN KEY(file_id) REFERENCES files(id)
+    CONSTRAINT sr_fk_image_file FOREIGN KEY(file_id) REFERENCES files(id) ON DELETE CASCADE
 )
