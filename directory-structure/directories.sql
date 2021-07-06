@@ -16,18 +16,18 @@ CREATE PROCEDURE CreateDirectoryFile(
     directory_name varchar(50),
     directory_parent_id int,
     directory_file_size int,
-    directory_file_path int,
+    directory_file_path varchar(100),
     directory_image_width int,
     directory_image_height int,
-    directory_extenstion int
+    directory_extention int
 )
 BEGIN
     INSERT INTO directories(name, type, parent_id) VALUES(directory_name, 1, directory_parent_id);
     SET @directory_id = @@IDENTITY;
-    INSERT INTO files(directory_id, extension, file_path, file_size) VALUES(@directory_id, directory_extension, directory_file_path, directory_file_size)
+    INSERT INTO files(directory_id, extention, file_path, file_size) VALUES(@directory_id, directory_extention, directory_file_path, directory_file_size);
     SET @file_id = @@IDENTITY;
-    IF(directory_extension = 1 OR directory_extension = 2) THEN 
-        CALL CreateImage(@file_id, directory_image_height, directory_image_width)
+    IF(directory_extention = 1 OR directory_extention = 2) THEN 
+        CALL CreateImage(@file_id, directory_image_height, directory_image_width);
     END IF;
 END; //
 
@@ -55,10 +55,11 @@ CREATE PROCEDURE UpdateDirectoryName(
 )
 BEGIN
     UPDATE directories 
-    SET directories.name = directory_name, directories.updated_at = CURRENT_TIMESTAMP
-    IF(extension is not NULL) THEN
+    SET directories.name = directory_name, directories.updated_at = CURRENT_TIMESTAMP;
+
+    IF(extention is not NULL) THEN
         UPDATE files
-        SET files.extension = extension, files.updated_at = CURRENT_TIMESTAMP
+        SET files.extention = extention, files.updated_at = CURRENT_TIMESTAMP
         WHERE files.directory_id = directory_id;
     END IF;
 END; //
@@ -68,11 +69,14 @@ DELIMITER ;
 -- to trash directory(file or folder) at any path
 DELIMITER //
 
+DELIMITER //
+
 CREATE PROCEDURE TrashDirectory(
     directory_id int
 )
 BEGIN
     DECLARE finished INT;
+    DECLARE sub_folder_id INT;
     
     -- getting all child folders through cursor
     DECLARE curFolder 
@@ -82,18 +86,22 @@ BEGIN
     FOR NOT FOUND SET finished = 1;
 
     SET @directory_type = (Select type from directories WHERE id = directory_id LIMIT 1);
-    if(@directory_type == 1) THEN
+    if(@directory_type = 1) THEN
         UPDATE directories
         SET directories.status = 1
-        WHERE directory_id in directory_ids;
+        WHERE directories.id = directory_id;
     ELSE
         -- recursing to delete all child folders
-        FOR sub_folder IN curFolder
-        LOOP
-            CALL TrashDirectory(sub_folder.id);
-        END LOOP;
+        OPEN curFolder;
+        folder_loop: WHILE(finished = 0) DO 
+            FETCH curFolder INTO sub_folder_id;
+        	CALL TrashDirectory(sub_folder_id);
+        	IF(finished = 1) THEN
+        		LEAVE folder_loop;
+        	END IF;
+        END WHILE folder_loop;
 
-        -- deleting all child files
+        -- trash all child files
         UPDATE directories
         SET directories.status = 1
         WHERE directories.parent_id = directory_id AND directories.type = 1;
@@ -104,7 +112,28 @@ BEGIN
         SET directories.status = 1
         WHERE directories.id = directory_id;
     END IF;
-END $$
+END; //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE PROCEDURE RemoveDirectoryPermanently(
+    directory_id int
+)
+BEGIN
+    SET @directory_type = (SELECT directories.type FROM directories WHERE directories.id = directory_id  LIMIT 1);
+    IF(@direcory_type = 1) THEN
+        SELECT x.extention, x.id INTO @extention, @file_id FROM (SELECT files.extention, id FROM files INNER JOIN directories d on d.id = files.director_id WHERE d.id = directory_id LIMIT 1)x;
+    	IF(@extention = 1 OR @extention = 2) THEN
+    		DELETE FROM images WHERE images.file_id = @file_id;
+    	END IF;
+    	DELETE FROM files WHERE files.id = @file_id;
+    END IF;
+    DELETE FROM directories WHERE directories.id = directory_id;
+END //
+
+DELIMITER ;
 
 DELIMITER //
 
@@ -113,6 +142,7 @@ CREATE PROCEDURE DeleteDirectory(
 )
 BEGIN
     DECLARE finished INT;
+    DECLARE sub_folder_id INT;
     
     -- getting all child folders through cursor
     DECLARE curFolder 
@@ -122,32 +152,38 @@ BEGIN
     FOR NOT FOUND SET finished = 1;
 
     SET @directory_type = (Select type from directories WHERE id = directory_id LIMIT 1);
-    if(@directory_type == 1) THEN
+    if(@directory_type = 1) THEN
         UPDATE directories
         SET directories.status = 1
-        WHERE directory_id in directory_ids;
+        WHERE directories.id = directory_id;
     ELSE
         -- recursing to delete all child folders
-        FOR sub_folder IN curFolder
-        LOOP
-            CALL DeleteDirectory(sub_folder.id);
-        END LOOP;
-
-        -- deleting all child files
-        DELETE directories
-        WHERE directories.parent_id = directory_id AND directories.type = 1;
+        OPEN curFolder;
+        folder_loop: WHILE(finished = 0) DO 
+            FETCH curFolder INTO sub_folder_id;
+        	CALL DeleteDirectory(sub_folder_id);
+        	IF(finished = 1) THEN
+        		LEAVE folder_loop;
+        	END IF;
+        END WHILE folder_loop;
 
         CLOSE curFolder;
+
+        CALL RemoveDirectoryPermanently(directory_id);
     END IF;
-END $$
+END; //
+
+DELIMITER ;
 
 -- To get directory(file or folder size) at any path
-CREATE FUNCTION DirectorySize( 
+DELIMITER //
+CREATE DEFINER=`root`@`localhost` FUNCTION `DirectorySize`( 
 	directory_id INT, 
 	size INT
-) RETURNS INT
+) RETURNS int(11)
 BEGIN
     DECLARE finished INT;
+    DECLARE sub_folder_id INT;
     
     -- getting all child folders through cursor
     DECLARE curFolder 
@@ -158,64 +194,31 @@ BEGIN
     
     SET @size = (SELECT COALESCE(size, 0));
     
-    IF(finished == 0) THEN
-        SET @directory_type = (Select type from directories WHERE id = directory_id LIMIT 1);
-        if(@directory_type == 1) THEN
-            @size = (SELECT files.size as size from files WHERE files.directoty_id = directory_id LIMIT);
-        ELSE
-            -- recursing to find size of all child folders
-            FOR sub_folder IN curFolder
-            LOOP
-                @size = @size + CALL DirectorySize(sub_folder.id, size);
-            END LOOP;
+    SET @directory_type = (Select directories.type from directories WHERE id = directory_id LIMIT 1);
+    IF(@directory_type = 1) THEN
+        SET @size = (SELECT files.file_size from files WHERE files.directory_id = directory_id LIMIT 1);
+    ELSE
+        -- recursing to delete all child folders
+        OPEN curFolder;
+        folder_loop: WHILE(finished = 0) DO 
+            FETCH curFolder INTO sub_folder_id;
+            SET @size_of_folder = (SELECT DirectorySize(sub_folder_id, 0));
+            SET @size = (@size + @size_of_folder);
+            IF(finished = 1) THEN
+        		LEAVE folder_loop;
+        	END IF;
+        END WHILE folder_loop;
 
-            CLOSE curFolder;
-        END IF;
+        CLOSE curFolder;
     END IF;
-    size = @size;
-    RETURN size;
-	-- DECLARE directory_size INT;
-    -- DECLARE directory_ids VARCHAR(10000);
-	-- DECLARE finished INT;
-    
-    -- DECLARE curFolder 
-	-- 	CURSOR FOR 
-	-- 		Select directories.id as id from directories WHERE directories.parent_id = directory_id;
-	-- DECLARE CONTINUE HANDLER 
-    -- FOR NOT FOUND SET finished = 1;
-    
-    -- IF(finished <> 1) THEN
-    -- 	SET finished = 0;
-    -- END IF;
 
-    -- SET directory_size = 0;
-	-- SET directory_ids = "";
-	
-    -- OPEN curFolder;
-    
-    -- getFolder: LOOP
-	-- 	FETCH curFolder INTO directory_ids;
-	-- 	IF finished = 1 THEN 
-	-- 		LEAVE getFolder;
-	-- 	END IF;
-		
-	-- 	SET directory_size = 0;
-	-- 	SET @directory_type = (Select type from directories WHERE id = directory_id LIMIT 1);
-    --     SET @size = 0;
-    --     IF(@directory_type = 1) THEN
-    --         SET directory_size = (Select COALESCE(files.size, 0) as size from files WHERE files.directory_id = directory_id LIMIT 1);
-	-- 	ELSE
-    --         SET @files_size = (Select sum(COALESCE(files.file_size,0)) from files INNER JOIN directories d On d.id = files.directory_id  WHERE d.parent_id = files.directory_id GROUP BY d.parent_id);
-	-- 	    SET directory_size = DirectorySize(directory_id, @size ) + @files_size + @size;
-	-- 	END IF;
-        	
-	-- END LOOP getFolder;
-	-- CLOSE curFolder;
-    
-	-- RETURN directory_size;
+
+    SET size = @size;
+    RETURN size;
 END; //
 
-DELIMITER ; 
+DELIMITER ;
+
 
 -- list files in latest created order(with or without perticular extention)
 DELIMITER //
@@ -244,7 +247,7 @@ BEGIN
     IF(extention IS NULL) THEN
     	SELECT * from files INNER JOIN directories d on d.id = files.directory_id WHERE ((d.name LIKE CONCAT('%', name,'%')) AND (files.extention IN (0,1,2))) ORDER BY files.created_at DESC;
     ELSE
-    	SELECT * from files INNER JOIN directories d on d.id = files.directory_id WHERE ((d.name LIKE CONCAT('%', name,'%')) AND (files.extention = extension)) ORDER BY files.created_at DESC;
+    	SELECT * from files INNER JOIN directories d on d.id = files.directory_id WHERE ((d.name LIKE CONCAT('%', name,'%')) AND (files.extention = extention)) ORDER BY files.created_at DESC;
     END IF;
 END; //
 DELIMITER ; 
