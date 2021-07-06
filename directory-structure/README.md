@@ -125,7 +125,7 @@ CALL ListFiles(
 # Search file by name
 Search file by name and extention
 ```
-CALL ListFiles(
+CALL SearchFiles(
   <search string for filename>, 
   <extention> // NULL => for all type of files, 0 => .txt, 1=> .jpeg, 2=> .png
 );
