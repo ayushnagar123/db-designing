@@ -48,6 +48,7 @@ DELIMITER ;
 
 -- to update directory name(file or folder) at any path
 DELIMITER //
+
 CREATE PROCEDURE UpdateDirectoryName(
     directory_id int,
     directory_name varchar(50),
@@ -68,9 +69,6 @@ DELIMITER ;
 
 -- to trash directory(file or folder) at any path
 DELIMITER //
-
-DELIMITER //
-
 CREATE PROCEDURE TrashDirectory(
     directory_id int
 )
@@ -116,6 +114,7 @@ END; //
 
 DELIMITER ;
 
+-- Delete a perticular directory completely by its id(deletes only this directory hence used with DeleteDirectory)
 DELIMITER //
 
 CREATE PROCEDURE RemoveDirectoryPermanently(
@@ -135,6 +134,7 @@ END //
 
 DELIMITER ;
 
+-- Delete a directory recursivly along with its child directories
 DELIMITER //
 
 CREATE PROCEDURE DeleteDirectory(
@@ -175,7 +175,7 @@ END; //
 
 DELIMITER ;
 
--- To get directory(file or folder size) at any path
+-- To get directory(file or folder) size at any path
 DELIMITER //
 CREATE DEFINER=`root`@`localhost` FUNCTION `DirectorySize`( 
 	directory_id INT, 
