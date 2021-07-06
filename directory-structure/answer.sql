@@ -63,9 +63,10 @@ SELECT @size;
 
 -- Search all files and get in descending order of created at
 SET @extension = NULL;
-CALL ListFiles(@extension);
+SET @name = 'd';  
+CALL SearchFiles(@name, @extension);
 
 -- Search all files and get in descending order of created at for perticular extension type
 SET @extension = 1;
 SET @name = 'd';  
-CALL ListFiles(@name, @extension);
+CALL SearchFiles(@name, @extension);
